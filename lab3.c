@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define MAX 100
 
@@ -51,6 +52,13 @@ typedef struct Manager {
 
 /* Function Declarations */
 void readRestOfFile(FILE* file, Manager* manager);
+Manager* readFileInput(char* fileName);
+void optimistic(Manager* manager);
+bool enough(Manager* manager);
+void performInstructions(Manager* manager);
+bool deadlock(Manager* m);
+bool canRequest(Manager* manager, Task* t);
+bool allDone(Manager* manager);
 
 Manager* readFileInput(char* fileName) {
   // Open file for read
@@ -67,7 +75,7 @@ Manager* readFileInput(char* fileName) {
     exit(1);
   }
   fscanf(file, "%d %d", &manager->numTasks, &manager->numResources);
-  manager->cycle = 1;
+  manager->cycle = 0;
 
   // Create resources 
   int temp = 1;
@@ -88,11 +96,11 @@ Manager* readFileInput(char* fileName) {
     task->id = temp;
 		task->numInstructions = 0;
 		task->state = NORMAL;
-		tasks->currentInstruction = 1;
+		task->currentInstruction = 1;
     manager->tasks[temp] = task;
     temp++;
 	}
-
+	printf("got up to here");
 	readRestOfFile(file, manager);
   return manager;
 }
@@ -101,7 +109,8 @@ void readRestOfFile(FILE* file, Manager* manager) {
 	char action[10];
 	int i, j, k;
 	
-	while (fscanf(file, "%s%*[ ] %d %d %d", &action, &i, &j, &k) > 0) {
+	while (!feof(file)) {
+		fscanf(file, "%s%*[ ] %d %d %d", &action, &i, &j, &k);
 		Instruction* instruction = (Instruction*) malloc(sizeof(Instruction));
 		instruction->thirdNumber = j;
 		instruction->fourthNumber = k;
@@ -111,7 +120,7 @@ void readRestOfFile(FILE* file, Manager* manager) {
 		} else if (strcmp(action, "request") == 0) {
 			instruction->action = REQUEST; 
 		} else if (strcmp(action, "release") == 0) {
-			instruction->action = RELEASE; 
+			instruction->action = RELEASE;
 		} else if (strcmp(action, "compute") == 0) {
 			instruction->action = COMPUTE; 
 		} else if (strcmp(action, "terminate") == 0) {
@@ -128,15 +137,17 @@ void readRestOfFile(FILE* file, Manager* manager) {
 
 void optimistic(Manager* manager) {
 	int i, j;
-
 	while (!allDone(manager)) {
 		int cycle = manager->cycle;
 		
 		for (i = 1; i <= manager->numTasks; i++) {
 			Task* t = manager->tasks[i];
-			if (t->state == BLOCKED && canRequest(t, manager)) {
-				t->state = UNBLOCKED;
-				t->currentInstruction++;
+			if (t->state == BLOCKED) {
+				t->cyclesWaiting++;
+				if (canRequest(manager, t)) {
+					t->state = UNBLOCKED;
+					t->currentInstruction++;
+				}
 			}
 		}
 
@@ -149,14 +160,13 @@ void optimistic(Manager* manager) {
 			}
 		}
 
-
 		if (deadlock(manager) && !allDone(manager)) {
 			for (i = 1; i <= manager->numTasks; i++) {
-				if (manager->tasks[i].state == BLOCKED) {
+				if (manager->tasks[i]->state == BLOCKED) {
 					Task* toAbort = manager->tasks[i];
 					for (j = 1; j <= toAbort->currentInstruction; j++) {
 						Instruction* currentInstruct = toAbort->instructions[j];
-						if (currentInstruct.state == REQUEST) {
+						if (currentInstruct->action == REQUEST) {
 							Resource* r = manager->resources[currentInstruct->thirdNumber];
 							r->unitsLeft += currentInstruct->fourthNumber;
 						}
@@ -182,12 +192,12 @@ void optimistic(Manager* manager) {
 
 bool enough(Manager* manager) {
 	int i;
-	for (i = 0; i < manager->numTasks; i++) {
+	for (i = 1; i <= manager->numTasks; i++) {
 		Task* t = manager->tasks[i];
 		if (t->state == BLOCKED) {
-			Instruction ins = t->instructions[currentInstruction];
+			Instruction* ins = t->instructions[t->currentInstruction];
 			Resource* r = manager->resources[ins->thirdNumber];
-			if (ins.state != REQUEST) {
+			if (ins->action != REQUEST) {
 				printf("Current instruction must be a request.");
 				exit(1);
 			}
@@ -200,22 +210,25 @@ bool enough(Manager* manager) {
 }
 
 void performInstructions(Manager* manager) {
+	int i;
 	for (i = 1; i <= manager->numTasks; i++) {
 		Task* t = manager->tasks[i];
 		if (t->state == NORMAL) {
-			Instruction* instruct = t->instructions[currentInstruction];
+			Instruction* instruct = t->instructions[t->currentInstruction];
+			Resource* r = manager->resources[instruct->thirdNumber];
+
 			switch (instruct->action) {
-				case INITIATE: 
+				case INITIATE:
+					t->currentInstruction++;
 					break;
 				case REQUEST: 
 					if (canRequest(manager, t)) {
 						t->currentInstruction++;
 					} else {
-						t-state = BLOCKED;
+						t->state = BLOCKED;
 					}
 					break;
 				case RELEASE:
-					Resource* r = manager->resources[instruct->thirdNumber];
 					r->unitsOnHold += instruct->fourthNumber;
 					t->currentInstruction++;
 					break;
@@ -238,8 +251,8 @@ void performInstructions(Manager* manager) {
 bool deadlock(Manager* m) {
 	int i;
 	for (i = 1; i <= m->numTasks; i++) {
-		if (m->tasks[i].state != BLOCKED && m->tasks[i].state != TERMINATED
-				&& m->tasks[i].state != ABORTED) {
+		if (m->tasks[i]->state != BLOCKED && m->tasks[i]->state != TERMINATED
+				&& m->tasks[i]->state != ABORTED) {
 			return false;
 		}
 	}
@@ -264,24 +277,56 @@ bool canRequest(Manager* manager, Task* t) {
 bool allDone(Manager* manager) {
 	int i;
 	for (i = 1; i <= manager->numTasks; i++) {
-		if (manager->tasks[i]->state != ABORTED && manager->tasks[i].state != TERMINATED) {
+		if (manager->tasks[i]->state != ABORTED 
+				&& manager->tasks[i]->state != TERMINATED) {
 			return false;
 		}
 	}
 	return true;
 }
 
+void printOptimistic(Manager* manager) {
+	int i;
+	int totalCyclesRun = 0;
+	int totalCyclesWaiting = 0;
+
+	printf("FIFO\n");
+	for (i = 1; i <= manager->numTasks; i++) {
+		Task* t = manager->tasks[i];
+
+		if (t->state == TERMINATED) {
+			int percent = (t->cyclesWaiting * 100) / t->cycleTerminated;
+			totalCyclesWaiting += t->cyclesWaiting;
+			totalCyclesRun += t->cycleTerminated;
+
+			printf("%s %d \t\t %d \t %d \t %d\%\n", 
+				"Task",
+				i, 
+				t->cycleTerminated, 
+				t->cyclesWaiting, 
+				percent);
+		} else if (t->state == ABORTED) {
+			printf("%s %d \t\t %s\n", "Task", i, "aborted");
+		}
+	}
+	printf("%s \t\t %d \t %d \t %d\%\n", 
+		"Total",
+		totalCyclesRun,
+		totalCyclesWaiting,
+		(totalCyclesWaiting * 100) / totalCyclesRun);
+}
+
+/*****************************************************************************/
+
 int main(int argc, char* argv[]) {
   if (argc != 2) {
-    printf("You must enter the name of the file containing the input as an argument.\n");
+    printf("Enter the name of the input file as an argument.\n");
     exit(1);
   }
 
   Manager* manager = readFileInput(argv[1]);
-	int i;
-	for (i = 1; i <= manager->numTasks; i++) {
-		printf("%d\n", manager->tasks[i]->numInstructions);
-	}
+	optimistic(manager);
+	printOptimistic(manager);
 
   return 0;
 }
