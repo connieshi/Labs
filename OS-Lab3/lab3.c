@@ -35,6 +35,12 @@ typedef struct Task {
 	int currentInstruction;
 } Task;
 
+typedef struct Queue {
+	Task* blocked[MAX];
+	int start;
+	int end;
+} Queue;
+
 typedef struct Resource {
   int id;
   int totalUnits;
@@ -45,6 +51,7 @@ typedef struct Resource {
 typedef struct Manager {
   Task* tasks[MAX];
   Resource* resources[MAX];
+	Queue* queue;
   int cycle;
   int numTasks;
   int numResources;
@@ -74,8 +81,14 @@ Manager* readFileInput(char* fileName) {
     printf("Cannot allocate manager.");
     exit(1);
   }
+
+	// Initiate queue and set other variables
   fscanf(file, "%d %d", &manager->numTasks, &manager->numResources);
   manager->cycle = 0;
+	Queue* queue = (Queue*) malloc(sizeof(Queue));
+	manager->queue = queue;
+	manager->queue->start = 0;
+	manager->queue->end = 0;
 
   // Create resources 
   int temp = 1;
@@ -100,17 +113,16 @@ Manager* readFileInput(char* fileName) {
     manager->tasks[temp] = task;
     temp++;
 	}
-	printf("got up to here");
 	readRestOfFile(file, manager);
   return manager;
 }
 
 void readRestOfFile(FILE* file, Manager* manager) {
-	char action[10];
+	char action[20];
 	int i, j, k;
 	
 	while (!feof(file)) {
-		fscanf(file, "%s%*[ ] %d %d %d", &action, &i, &j, &k);
+		fscanf(file, "%s%*[ \t] %d %d %d", &action, &i, &j, &k);
 		Instruction* instruction = (Instruction*) malloc(sizeof(Instruction));
 		instruction->thirdNumber = j;
 		instruction->fourthNumber = k;
@@ -126,7 +138,7 @@ void readRestOfFile(FILE* file, Manager* manager) {
 		} else if (strcmp(action, "terminate") == 0) {
 			instruction->action = TERMINATE; 
 		} else {
-			printf("Action not found...\n");
+			printf("Action not found: %s \n", action);
 			exit(1);
 		}
 		int nInstructions = manager->tasks[i]->numInstructions;
@@ -139,14 +151,22 @@ void optimistic(Manager* manager) {
 	int i, j;
 	while (!allDone(manager)) {
 		int cycle = manager->cycle;
-		
-		for (i = 1; i <= manager->numTasks; i++) {
-			Task* t = manager->tasks[i];
-			if (t->state == BLOCKED) {
+		printf("Cycle %d: \n", cycle);		
+
+		printf("Checking blocked tasks...\n");
+		Queue* queue = manager->queue;
+		for (i = queue->start; i < queue->end; i++) {
+			if (queue->blocked[i] != NULL) {
+				Task* t = queue->blocked[i];
+				if (t->state != BLOCKED) {
+					printf("Queue contains an unblocked task.\n");
+				}
+				printf("Task %d is still blocked\n", t->id);
 				t->cyclesWaiting++;
 				if (canRequest(manager, t)) {
 					t->state = UNBLOCKED;
 					t->currentInstruction++;
+					manager->queue->blocked[i] = NULL;
 				}
 			}
 		}
@@ -156,23 +176,31 @@ void optimistic(Manager* manager) {
 		for (i = 1; i <= manager->numTasks; i++) {
 			Task* t = manager->tasks[i];
 			if (t->state == UNBLOCKED) {
+				printf("Task %d is unblocked!\n", t->id);
 				t->state = NORMAL;
 			}
 		}
 
+		// If all runnable tasks are blocked waiting for resource, abort tasks until
+		// A task is able to run
 		if (deadlock(manager) && !allDone(manager)) {
+			printf("All runnable tasks are blocked.\n");
 			for (i = 1; i <= manager->numTasks; i++) {
 				if (manager->tasks[i]->state == BLOCKED) {
 					Task* toAbort = manager->tasks[i];
-					for (j = 1; j <= toAbort->currentInstruction; j++) {
+					printf("Aborting task %d\n", toAbort->id);
+					for (j = 1; j < toAbort->currentInstruction; j++) {
 						Instruction* currentInstruct = toAbort->instructions[j];
 						if (currentInstruct->action == REQUEST) {
+							printf("Returning resource %d: %d units\n", 
+								currentInstruct->thirdNumber, currentInstruct->fourthNumber);
 							Resource* r = manager->resources[currentInstruct->thirdNumber];
 							r->unitsLeft += currentInstruct->fourthNumber;
 						}
 					}
 					toAbort->state = ABORTED;
 					if (enough(manager)) {
+						printf("There are enough resources to not abort tasks.\n");
 						break;
 					}
 				}
@@ -221,25 +249,34 @@ void performInstructions(Manager* manager) {
 				case INITIATE:
 					t->currentInstruction++;
 					break;
-				case REQUEST: 
+				case REQUEST:
 					if (canRequest(manager, t)) {
+						printf("Task %d completes its request.\n", t->id);
 						t->currentInstruction++;
 					} else {
+						printf("Task %d is now blocked.\n", t->id);
+						Queue* queue = manager->queue;
+						queue->blocked[queue->end] = t;
+						queue->end++;
 						t->state = BLOCKED;
 					}
 					break;
 				case RELEASE:
 					r->unitsOnHold += instruct->fourthNumber;
 					t->currentInstruction++;
+					printf("Task %d will release %d units of resource %d in next cycle\n", 
+						t->id, r->unitsOnHold, instruct->thirdNumber);
 					break;
 				case COMPUTE:
 					instruct->thirdNumber--;
+					printf("Task % is computing...\n", t->id);
 					if (instruct->thirdNumber <= 0) {
 						t->state = NORMAL;
 						t->currentInstruction++;
 					}
 					break;
 				case TERMINATE:
+					printf("Task %d has terminated.\n", t->id);
 					t->state = TERMINATED;
 					t->cycleTerminated = manager->cycle;
 					break;
