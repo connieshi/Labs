@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <math.h>
 
 #define MAX 100
 
@@ -158,15 +159,14 @@ void optimistic(Manager* manager) {
 		for (i = queue->start; i < queue->end; i++) {
 			if (queue->blocked[i] != NULL) {
 				Task* t = queue->blocked[i];
-				if (t->state != BLOCKED) {
-					printf("Queue contains an unblocked task.\n");
-				}
-				printf("Task %d is still blocked\n", t->id);
-				t->cyclesWaiting++;
-				if (canRequest(manager, t)) {
-					t->state = UNBLOCKED;
-					t->currentInstruction++;
-					manager->queue->blocked[i] = NULL;
+				if (t->state == BLOCKED) {
+					printf("Task %d is still blocked\n", t->id);
+					t->cyclesWaiting++;
+					if (canRequest(manager, t)) {
+						t->state = UNBLOCKED;
+						t->currentInstruction++;
+						manager->queue->blocked[i] = NULL;
+					}
 				}
 			}
 		}
@@ -176,7 +176,7 @@ void optimistic(Manager* manager) {
 		for (i = 1; i <= manager->numTasks; i++) {
 			Task* t = manager->tasks[i];
 			if (t->state == UNBLOCKED) {
-				printf("Task %d is unblocked!\n", t->id);
+				printf("Task %d completes its request!\n", t->id);
 				t->state = NORMAL;
 			}
 		}
@@ -191,11 +191,11 @@ void optimistic(Manager* manager) {
 					printf("Aborting task %d\n", toAbort->id);
 					for (j = 1; j < toAbort->currentInstruction; j++) {
 						Instruction* currentInstruct = toAbort->instructions[j];
+						Resource* r = manager->resources[currentInstruct->thirdNumber];
 						if (currentInstruct->action == REQUEST) {
-							printf("Returning resource %d: %d units\n", 
-								currentInstruct->thirdNumber, currentInstruct->fourthNumber);
-							Resource* r = manager->resources[currentInstruct->thirdNumber];
 							r->unitsLeft += currentInstruct->fourthNumber;
+						} else if (currentInstruct->action == RELEASE) {
+							r->unitsLeft -= currentInstruct->fourthNumber;
 						}
 					}
 					toAbort->state = ABORTED;
@@ -213,8 +213,8 @@ void optimistic(Manager* manager) {
 			r->unitsLeft += r->unitsOnHold;
 			r->unitsOnHold = 0;
 		}
-		
-		manager->cycle++;		
+		manager->cycle++;
+		printf("\n");
 	}		
 }
 
@@ -332,7 +332,7 @@ void printOptimistic(Manager* manager) {
 		Task* t = manager->tasks[i];
 
 		if (t->state == TERMINATED) {
-			int percent = (t->cyclesWaiting * 100) / t->cycleTerminated;
+			int percent = (int) ceil((float)(t->cyclesWaiting * 100) / t->cycleTerminated);
 			totalCyclesWaiting += t->cyclesWaiting;
 			totalCyclesRun += t->cycleTerminated;
 
@@ -350,20 +350,44 @@ void printOptimistic(Manager* manager) {
 		"Total",
 		totalCyclesRun,
 		totalCyclesWaiting,
-		(totalCyclesWaiting * 100) / totalCyclesRun);
+		(int) ceil(((float)totalCyclesWaiting * 100) / totalCyclesRun));
+}
+
+Manager* makeCopy(Manager* manager) {
+	Manager* newManager = (Manager*) malloc(sizeof(Manager));
+	
 }
 
 /*****************************************************************************/
 
 int main(int argc, char* argv[]) {
+	int i. j;
+
   if (argc != 2) {
     printf("Enter the name of the input file as an argument.\n");
     exit(1);
   }
 
-  Manager* manager = readFileInput(argv[1]);
-	optimistic(manager);
-	printOptimistic(manager);
+  Manager* optimisticManager = readFileInput(argv[1]);
+	optimistic(optimisticManager);
+	printOptimistic(optimisticManager);
+	
+	// Free used resources for optimistic manager
+	for (i = 1; i <= numTasks; i++) {
+		for (j = 1; j <= numClaims; j++) {
+			free(optimisticManager->tasks[i]->claims[j]);	
+		}
+		for (j = 0; j < numInstructions; j++) {
+			free(optmisticManager->tasks[i]->instructions[j]);
+		}
+		free(optimisticManager->tasks[i]);
+	}
+	for (i = 1; i < numResources; i++) {
+		free(optimisticManager->resources[i]);
+	}
+	free(optimisticManager->queue);
+	free(optimisticManager);
 
+	Manager* bankerManager = readFileInput(argv[1]);
   return 0;
 }
