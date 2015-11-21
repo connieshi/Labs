@@ -8,6 +8,7 @@
 typedef struct Claim {
   int id;
   int claimUnits;
+	int numAllocated;
 } Claim;
 
 typedef enum Action {
@@ -63,10 +64,18 @@ void readRestOfFile(FILE* file, Manager* manager);
 Manager* readFileInput(char* fileName);
 void optimistic(Manager* manager);
 bool enough(Manager* manager);
-void performInstructions(Manager* manager);
+void performOptimisticInstructions(Manager* manager);
+void performBankerInstructions(Manager* manager);
 bool deadlock(Manager* m);
 bool canRequest(Manager* manager, Task* t);
 bool allDone(Manager* manager);
+void unblockTasks(Manager* manager);
+void releaseResources(Manager* manager);
+bool isSafe(Manager* manager, Task* task);
+bool checkSafetyForAll(Manager* copy);
+void finishTask(Manager* copy, Task* curTask);
+bool canFinish(Manager* copy, Task* curTask);
+Manager* makeCopy(Manager* manager);
 
 Manager* readFileInput(char* fileName) {
   // Open file for read
@@ -150,6 +159,7 @@ void readRestOfFile(FILE* file, Manager* manager) {
 
 void optimistic(Manager* manager) {
 	int i, j;
+
 	while (!allDone(manager)) {
 		int cycle = manager->cycle;
 		printf("Cycle %d: \n", cycle);		
@@ -171,15 +181,8 @@ void optimistic(Manager* manager) {
 			}
 		}
 
-		performInstructions(manager);
-
-		for (i = 1; i <= manager->numTasks; i++) {
-			Task* t = manager->tasks[i];
-			if (t->state == UNBLOCKED) {
-				printf("Task %d completes its request!\n", t->id);
-				t->state = NORMAL;
-			}
-		}
+		performOptimisticInstructions(manager);
+		unblockTasks(manager);
 
 		// If all runnable tasks are blocked waiting for resource, abort tasks until
 		// A task is able to run
@@ -208,14 +211,136 @@ void optimistic(Manager* manager) {
 		}
 
 		// Make units on hold released from this cycle available for next round
-		for (i = 1; i <= manager->numResources; i++) {
-			Resource* r = manager->resources[i];
-			r->unitsLeft += r->unitsOnHold;
-			r->unitsOnHold = 0;
-		}
+		releaseResources(manager);
 		manager->cycle++;
 		printf("\n");
 	}		
+}
+
+void unblockTasks(Manager* manager) {
+	int i;
+	for (i = 1; i <= manager->numTasks; i++) {
+		Task* t = manager->tasks[i];
+		if (t->state == UNBLOCKED) {
+			printf("Task %d completes its request!\n", t->id);
+			t->state = NORMAL;
+		}
+	}
+}
+
+void releaseResources(Manager* manager) {
+	int i;
+	for (i = 1; i <= manager->numResources; i++) {
+		Resource* r = manager->resources[i];
+		r->unitsLeft += r->unitsOnHold;
+		r->unitsOnHold = 0;
+	}
+}
+
+void bankers(Manager* manager) {
+	int i, j;
+
+	while (!allDone(manager)) {
+		int cycle = manager->cycle;
+		printf("Cycle %d: \n", cycle);
+		
+		printf("Checking blocked tasks...\n");
+		Queue* queue = manager->queue;
+		for (i = queue->start; i < queue->end; i++) {
+			if (queue->blocked[i] != NULL) {
+				Task* t = queue->blocked[i];
+				if (t->state == BLOCKED) {
+					printf("Task %d is still blocked\n", t->id);
+					t->cyclesWaiting++;
+					if (isSafe(manager, t)) {
+						t->state = UNBLOCKED;
+						t->currentInstruction++;
+						manager->queue->blocked[i] = NULL;
+					}
+				}
+			}
+		}
+
+		performBankerInstructions(manager);
+		unblockTasks(manager);
+
+		// Release available resources for the next cycle
+		releaseResources(manager);
+		manager->cycle++;
+		printf("\n");
+	}	
+}
+
+bool isSafe(Manager* manager, Task* task) {
+	int i;
+	Manager* copy = makeCopy(manager);
+	Task* taskCopy = copy->tasks[task->id];
+	Instruction* currInstruct = taskCopy->instructions[taskCopy->currentInstruction];
+	Claim* claim = taskCopy->claims[currInstruct->thirdNumber];	
+
+	if (currInstruct->action != REQUEST) {
+		printf("Current instruction's action must be request.\n");
+		exit(1);
+	}
+
+	if (currInstruct->fourthNumber > claim->claimUnits) {
+		printf("Task %d requested more than its initial claim, aborting...\n");
+		task->state = ABORTED;
+		return false;
+	}
+
+	Resource* r = copy->resources[currInstruct->thirdNumber];
+	if (currInstruct->fourthNumber > r->unitsLeft) {
+		printf("Task %d request cannot be granted, not enough resources available.\n");
+		return false;
+	}
+
+	r->unitsLeft -= currInstruct->fourthNumber;
+	taskCopy->currentInstruction++;
+	return checkSafetyForAll(copy);	
+}
+
+bool checkSafetyForAll(Manager* copy) {
+	int i, j;
+	bool keepGoing = true;
+
+	while (keepGoing && !allDone(copy)) {
+		keepGoing = false;
+		for (i = 1; i <= copy->numTasks; i++) {
+			Task* curTask = copy->tasks[i];
+			if (canFinish(copy, curTask)) {
+				finishTask(copy, curTask);
+				keepGoing = true;
+			}
+		}
+	}
+	return allDone(copy);
+}
+
+bool canFinish(Manager* copy, Task* curTask) {
+	int i;
+
+	for (i = 1; i <= curTask->numClaims; i++) {
+		Claim* claim = curTask->claims[i];
+		Resource* resource = copy->resources[i];
+		int unitsNeeded = claim->claimUnits - claim->numAllocated;
+		if (unitsNeeded > resource->unitsLeft) {
+			return false;
+		}
+	}
+	return true;
+}
+
+void finishTask(Manager* copy, Task* curTask) {
+	int i;
+
+	for (i = 1; i < curTask->numClaims; i++) {
+		Claim* claim = curTask->claims[i];
+		Resource* resource = copy->resources[i];
+		resource->unitsLeft += claim->numAllocated;
+		claim->numAllocated = 0;	
+	}
+	curTask->state = TERMINATED;
 }
 
 bool enough(Manager* manager) {
@@ -237,7 +362,7 @@ bool enough(Manager* manager) {
 	return false;	
 }
 
-void performInstructions(Manager* manager) {
+void performOptimisticInstructions(Manager* manager) {
 	int i;
 	for (i = 1; i <= manager->numTasks; i++) {
 		Task* t = manager->tasks[i];
@@ -251,6 +376,64 @@ void performInstructions(Manager* manager) {
 					break;
 				case REQUEST:
 					if (canRequest(manager, t)) {
+						printf("Task %d completes its request.\n", t->id);
+						t->currentInstruction++;
+					} else {
+						printf("Task %d is now blocked.\n", t->id);
+						Queue* queue = manager->queue;
+						queue->blocked[queue->end] = t;
+						queue->end++;
+						t->state = BLOCKED;
+					}
+					break;
+				case RELEASE:
+					r->unitsOnHold += instruct->fourthNumber;
+					t->currentInstruction++;
+					printf("Task %d will release %d units of resource %d in next cycle\n", 
+						t->id, r->unitsOnHold, instruct->thirdNumber);
+					break;
+				case COMPUTE:
+					instruct->thirdNumber--;
+					printf("Task % is computing...\n", t->id);
+					if (instruct->thirdNumber <= 0) {
+						t->state = NORMAL;
+						t->currentInstruction++;
+					}
+					break;
+				case TERMINATE:
+					printf("Task %d has terminated.\n", t->id);
+					t->state = TERMINATED;
+					t->cycleTerminated = manager->cycle;
+					break;
+			}
+		}
+	}
+}
+
+void performBankerInstructions(Manager* manager) {
+	int i;
+
+	for (i = 1; i <= manager->numTasks; i++) {
+		Task* t = manager->tasks[i];
+		if (t->state == NORMAL) {
+			Instruction* instruct = t->instructions[t->currentInstruction];
+			Resource* r = manager->resources[instruct->thirdNumber];
+
+			switch (instruct->action) {
+				case INITIATE:
+					if (instruct->fourthNumber > r->totalUnits) {
+						printf("Task %d claim exceeds number of resources, aborting...\n", t->id);
+						t->state = ABORTED;
+					} else {
+						Claim* claim = (Claim*) malloc(sizeof(Claim));
+						claim->id = instruct->thirdNumber;
+						claim->claimUnits = instruct->fourthNumber;
+						claim->numAllocated = 0;
+						t->currentInstruction++;
+					}
+					break;
+				case REQUEST:
+					if (isSafe(manager, t)) {
 						printf("Task %d completes its request.\n", t->id);
 						t->currentInstruction++;
 					} else {
@@ -354,15 +537,76 @@ void printOptimistic(Manager* manager) {
 }
 
 Manager* makeCopy(Manager* manager) {
+	int i, j;
+
 	Manager* newManager = (Manager*) malloc(sizeof(Manager));
-	
+	newManager->cycle = manager->cycle;
+	newManager->numTasks = manager->numTasks;
+	newManager->numResources = manager->numResources;
+
+	for (i = 1; i <= manager->numTasks; i++) {
+		Task* newTask = (Task*) malloc(sizeof(Task));
+		Task* oldTask = manager->tasks[i];
+		newTask->id = oldTask->id;
+		newTask->numClaims = oldTask->numClaims;
+		newTask->state = oldTask->state;
+		newTask->cycleTerminated = oldTask->cycleTerminated;
+		newTask->cyclesWaiting = oldTask->cyclesWaiting;
+		newTask->numInstructions = oldTask->numInstructions;
+		newTask->currentInstruction = oldTask->currentInstruction;
+		for (j = 1; j <= oldTask->numClaims; j++) {
+			Claim* newClaim = (Claim*) malloc(sizeof(Claim));
+			Claim* oldClaim = oldTask->claims[j];
+			newClaim->id = oldClaim->id;
+			newClaim->claimUnits = oldClaim->claimUnits;
+			newClaim->numAllocated = oldClaim->numAllocated;
+			newTask->claims[j] = newClaim;
+		}
+		newManager->tasks[i] = newTask;
+	}
+
+	for (i = 1; i <= manager->numResources; i++) {
+		Resource* resource = (Resource*) malloc(sizeof(Resource));
+		Resource* oldResource = manager->resources[i];
+		resource->id = oldResource->id;
+		resource->totalUnits = oldResource->totalUnits;
+		resource->unitsLeft = oldResource->unitsLeft;
+		resource->unitsOnHold = oldResource->unitsOnHold;
+		newManager->resources[i] = resource;
+	}
+
+	newManager->queue = (Queue*) malloc(sizeof(Queue));
+	for (i = 0; i < manager->queue->end; i++) {
+		newManager->queue->blocked[i] = manager->queue->blocked[i];
+	}
+	newManager->queue->start = manager->queue->start;
+	newManager->queue->end = manager->queue->end;
+
+	return newManager;
+}
+
+void freeEverything(Manager* manager) {
+	int i, j;
+
+	for (i = 1; i <= manager->numTasks; i++) {
+		for (j = 1; j <= manager->tasks[i]->numClaims; j++) {
+			free(manager->tasks[i]->claims[j]);	
+		}
+		for (j = 0; j < manager->tasks[i]->numInstructions; j++) {
+			free(manager->tasks[i]->instructions[j]);
+		}
+		free(manager->tasks[i]);
+	}
+	for (i = 1; i < manager->numResources; i++) {
+		free(manager->resources[i]);
+	}
+	free(manager->queue);
+	free(manager);
 }
 
 /*****************************************************************************/
 
 int main(int argc, char* argv[]) {
-	int i. j;
-
   if (argc != 2) {
     printf("Enter the name of the input file as an argument.\n");
     exit(1);
@@ -371,22 +615,7 @@ int main(int argc, char* argv[]) {
   Manager* optimisticManager = readFileInput(argv[1]);
 	optimistic(optimisticManager);
 	printOptimistic(optimisticManager);
-	
-	// Free used resources for optimistic manager
-	for (i = 1; i <= numTasks; i++) {
-		for (j = 1; j <= numClaims; j++) {
-			free(optimisticManager->tasks[i]->claims[j]);	
-		}
-		for (j = 0; j < numInstructions; j++) {
-			free(optmisticManager->tasks[i]->instructions[j]);
-		}
-		free(optimisticManager->tasks[i]);
-	}
-	for (i = 1; i < numResources; i++) {
-		free(optimisticManager->resources[i]);
-	}
-	free(optimisticManager->queue);
-	free(optimisticManager);
+	freeEverything(optimisticManager);	
 
 	Manager* bankerManager = readFileInput(argv[1]);
   return 0;
