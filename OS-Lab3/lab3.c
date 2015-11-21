@@ -3,7 +3,8 @@
 #include <stdbool.h>
 #include <math.h>
 
-#define MAX 100
+#define MOST 100
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
 
 typedef struct Claim {
   int id;
@@ -27,18 +28,18 @@ typedef struct Instruction {
 
 typedef struct Task {
   int id;
-  int numClaims;
+  int maxClaimId;
 	State state;
-  Claim* claims[MAX];
+  Claim* claims[MOST];
   int cycleTerminated;
   int cyclesWaiting;
-	Instruction* instructions[MAX];
+	Instruction* instructions[MOST];
 	int numInstructions;
 	int currentInstruction;
 } Task;
 
 typedef struct Queue {
-	Task* blocked[MAX];
+	Task* blocked[MOST];
 	int start;
 	int end;
 } Queue;
@@ -51,8 +52,8 @@ typedef struct Resource {
 } Resource;
 
 typedef struct Manager {
-  Task* tasks[MAX];
-  Resource* resources[MAX];
+  Task* tasks[MOST];
+  Resource* resources[MOST];
 	Queue* queue;
   int cycle;
   int numTasks;
@@ -78,6 +79,9 @@ bool canFinish(Manager* copy, Task* curTask);
 Manager* makeCopy(Manager* manager);
 
 Manager* readFileInput(char* fileName) {
+	int temp = 1;
+	int i;
+
   // Open file for read
   FILE* file = fopen(fileName, "r");
   if (!file) {
@@ -101,7 +105,6 @@ Manager* readFileInput(char* fileName) {
 	manager->queue->end = 0;
 
   // Create resources 
-  int temp = 1;
   while (temp <= manager->numResources) {
     Resource* resource = (Resource*) malloc(sizeof(Resource));
     resource->id = temp;
@@ -120,6 +123,10 @@ Manager* readFileInput(char* fileName) {
 		task->numInstructions = 0;
 		task->state = NORMAL;
 		task->currentInstruction = 1;
+		task->maxClaimId = 0;
+		for (i = 0; i < MOST; i++) {
+			task->claims[i] = NULL;
+		}
     manager->tasks[temp] = task;
     temp++;
 	}
@@ -239,8 +246,9 @@ void releaseResources(Manager* manager) {
 
 void bankers(Manager* manager) {
 	int i, j;
+	int k = 10;
 
-	while (!allDone(manager)) {
+	while (!allDone(manager) && k-- != 0) {
 		int cycle = manager->cycle;
 		printf("Cycle %d: \n", cycle);
 		
@@ -275,29 +283,38 @@ bool isSafe(Manager* manager, Task* task) {
 	int i;
 	Manager* copy = makeCopy(manager);
 	Task* taskCopy = copy->tasks[task->id];
-	Instruction* currInstruct = taskCopy->instructions[taskCopy->currentInstruction];
-	Claim* claim = taskCopy->claims[currInstruct->thirdNumber];	
+	Instruction* instructCopy = taskCopy->instructions[taskCopy->currentInstruction];
+	Claim* claimCopy = taskCopy->claims[instructCopy->thirdNumber];	
 
-	if (currInstruct->action != REQUEST) {
+	if (instructCopy->action != REQUEST) {
 		printf("Current instruction's action must be request.\n");
 		exit(1);
 	}
 
-	if (currInstruct->fourthNumber > claim->claimUnits) {
-		printf("Task %d requested more than its initial claim, aborting...\n");
+	if (instructCopy->fourthNumber > claimCopy->claimUnits) {
+		printf("Task %d requested more than its initial claimCopy, aborting...\n");
 		task->state = ABORTED;
 		return false;
 	}
 
-	Resource* r = copy->resources[currInstruct->thirdNumber];
-	if (currInstruct->fourthNumber > r->unitsLeft) {
+	Resource* r = copy->resources[instructCopy->thirdNumber];
+	if (instructCopy->fourthNumber > r->unitsLeft) {
 		printf("Task %d request cannot be granted, not enough resources available.\n");
 		return false;
 	}
 
-	r->unitsLeft -= currInstruct->fourthNumber;
+	r->unitsLeft -= instructCopy->fourthNumber;
+	claimCopy->numAllocated += instructCopy->fourthNumber;
 	taskCopy->currentInstruction++;
-	return checkSafetyForAll(copy);	
+	bool canRequest = checkSafetyForAll(copy);
+
+	if (canRequest) {
+		Instruction* toExecute = task->instructions[task->currentInstruction];
+		Resource* resource = manager->resources[toExecute->thirdNumber];
+		Claim* claim = task->claims[toExecute->thirdNumber];
+		resource->unitsLeft -= toExecute->fourthNumber;
+	} 
+	return canRequest;	
 }
 
 bool checkSafetyForAll(Manager* copy) {
@@ -320,12 +337,14 @@ bool checkSafetyForAll(Manager* copy) {
 bool canFinish(Manager* copy, Task* curTask) {
 	int i;
 
-	for (i = 1; i <= curTask->numClaims; i++) {
+	for (i = 1; i <= curTask->maxClaimId; i++) {
 		Claim* claim = curTask->claims[i];
-		Resource* resource = copy->resources[i];
-		int unitsNeeded = claim->claimUnits - claim->numAllocated;
-		if (unitsNeeded > resource->unitsLeft) {
-			return false;
+		if (claim != NULL) {
+			Resource* resource = copy->resources[i];
+			int unitsNeeded = claim->claimUnits - claim->numAllocated;
+			if (unitsNeeded > resource->unitsLeft) {
+				return false;
+			}
 		}
 	}
 	return true;
@@ -334,7 +353,7 @@ bool canFinish(Manager* copy, Task* curTask) {
 void finishTask(Manager* copy, Task* curTask) {
 	int i;
 
-	for (i = 1; i < curTask->numClaims; i++) {
+	for (i = 1; i <= curTask->maxClaimId; i++) {
 		Claim* claim = curTask->claims[i];
 		Resource* resource = copy->resources[i];
 		resource->unitsLeft += claim->numAllocated;
@@ -429,6 +448,8 @@ void performBankerInstructions(Manager* manager) {
 						claim->id = instruct->thirdNumber;
 						claim->claimUnits = instruct->fourthNumber;
 						claim->numAllocated = 0;
+						t->claims[claim->id] = claim;
+						t->maxClaimId = MAX(t->maxClaimId, claim->id);
 						t->currentInstruction++;
 					}
 					break;
@@ -505,12 +526,12 @@ bool allDone(Manager* manager) {
 	return true;
 }
 
-void printOptimistic(Manager* manager) {
+void print(Manager* manager, char* runType) {
 	int i;
 	int totalCyclesRun = 0;
 	int totalCyclesWaiting = 0;
 
-	printf("FIFO\n");
+	printf(runType);
 	for (i = 1; i <= manager->numTasks; i++) {
 		Task* t = manager->tasks[i];
 
@@ -548,20 +569,34 @@ Manager* makeCopy(Manager* manager) {
 		Task* newTask = (Task*) malloc(sizeof(Task));
 		Task* oldTask = manager->tasks[i];
 		newTask->id = oldTask->id;
-		newTask->numClaims = oldTask->numClaims;
+		newTask->maxClaimId = oldTask->maxClaimId;
 		newTask->state = oldTask->state;
 		newTask->cycleTerminated = oldTask->cycleTerminated;
 		newTask->cyclesWaiting = oldTask->cyclesWaiting;
 		newTask->numInstructions = oldTask->numInstructions;
 		newTask->currentInstruction = oldTask->currentInstruction;
-		for (j = 1; j <= oldTask->numClaims; j++) {
-			Claim* newClaim = (Claim*) malloc(sizeof(Claim));
-			Claim* oldClaim = oldTask->claims[j];
-			newClaim->id = oldClaim->id;
-			newClaim->claimUnits = oldClaim->claimUnits;
-			newClaim->numAllocated = oldClaim->numAllocated;
-			newTask->claims[j] = newClaim;
+
+		for (j = 1; j <= oldTask->maxClaimId; j++) {
+			if (oldTask->claims[j] == NULL) {
+				newTask->claims[j] = NULL;
+			} else {
+				Claim* newClaim = (Claim*) malloc(sizeof(Claim));
+				Claim* oldClaim = oldTask->claims[j];
+				newClaim->id = oldClaim->id;
+				newClaim->claimUnits = oldClaim->claimUnits;
+				newClaim->numAllocated = oldClaim->numAllocated;
+				newTask->claims[j] = newClaim;
+			}
 		}
+
+		for (j = 1; j <= oldTask->numInstructions; j++) {
+			Instruction* oldInstruct = oldTask->instructions[j];
+			Instruction* newInstruct = (Instruction*) malloc(sizeof(Instruction));
+			newInstruct->action = oldInstruct->action;
+			newInstruct->thirdNumber = oldInstruct->thirdNumber;
+			newInstruct->fourthNumber = oldInstruct->fourthNumber;
+			newTask->instructions[j] = newInstruct;	
+		}		
 		newManager->tasks[i] = newTask;
 	}
 
@@ -589,8 +624,10 @@ void freeEverything(Manager* manager) {
 	int i, j;
 
 	for (i = 1; i <= manager->numTasks; i++) {
-		for (j = 1; j <= manager->tasks[i]->numClaims; j++) {
-			free(manager->tasks[i]->claims[j]);	
+		for (j = 1; j <= manager->tasks[i]->maxClaimId; j++) {
+			if (manager->tasks[i]->claims[j] != NULL) {
+				free(manager->tasks[i]->claims[j]);	
+			}
 		}
 		for (j = 0; j < manager->tasks[i]->numInstructions; j++) {
 			free(manager->tasks[i]->instructions[j]);
@@ -614,9 +651,13 @@ int main(int argc, char* argv[]) {
 
   Manager* optimisticManager = readFileInput(argv[1]);
 	optimistic(optimisticManager);
-	printOptimistic(optimisticManager);
+	print(optimisticManager, "FIFO\n");
 	freeEverything(optimisticManager);	
+	printf("*-------------------------------------------------------------*\n\n");
 
 	Manager* bankerManager = readFileInput(argv[1]);
+	bankers(bankerManager);
+	print(bankerManager, "BANKER'S\n");
+	freeEverything(bankerManager);
   return 0;
 }
