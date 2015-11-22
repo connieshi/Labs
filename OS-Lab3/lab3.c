@@ -87,6 +87,9 @@ bool canFinish(Manager* copy, Task* curTask);
 Manager* makeCopy(Manager* manager);
 void abortTask(Manager* manager, Task* toAbort);
 
+/* Global Variable */
+bool verbose = false;
+
 /* 
  * Read an input file, create a Manager, Tasks, Queue, and Resources
  */
@@ -190,16 +193,18 @@ void optimistic(Manager* manager) {
 
 	while (!allDone(manager)) {
 		int cycle = manager->cycle;
-		printf("Cycle %d: \n", cycle);		
-
+		if (verbose) {
+			printf("Cycle %d: \n", cycle);
+			printf("Checking blocked tasks...\n");
+		}
+		
 		// Check blocked queue to see if any tasks can complete its request
-		printf("Checking blocked tasks...\n");
 		Queue* queue = manager->queue;
 		for (i = queue->start; i < queue->end; i++) {
 			if (queue->blocked[i] != NULL) {
 				Task* t = queue->blocked[i];
 				if (t->state == BLOCKED) {
-					printf("Task %d is still blocked\n", t->id);
+					if (verbose) printf("Task %d is still blocked\n", t->id);
 					t->cyclesWaiting++;
 					if (canRequest(manager, t)) {
 						t->state = UNBLOCKED;
@@ -219,13 +224,13 @@ void optimistic(Manager* manager) {
 		// If all runnable tasks are blocked waiting for resource, abort tasks 
 		// Until a task is able to run
 		if (deadlock(manager) && !allDone(manager)) {
-			printf("All runnable tasks are blocked.\n");
+			if (verbose) printf("All runnable tasks are blocked.\n");
 
 			// Get the first blocked task with the lowest number
 			for (i = 1; i <= manager->numTasks; i++) {
 				if (manager->tasks[i]->state == BLOCKED) {
 					Task* toAbort = manager->tasks[i];
-					printf("Aborting task %d\n", toAbort->id);
+					if (verbose) printf("Aborting task %d\n", toAbort->id);
 
 					// Retrieve all resources that aborting task holds
 					for (j = 1; j < toAbort->currentInstruction; j++) {
@@ -241,7 +246,7 @@ void optimistic(Manager* manager) {
 					// Mark as aborted and check if have enough resources to not deadlock
 					toAbort->state = ABORTED;
 					if (enough(manager)) {
-						printf("There are enough resources to not abort tasks.\n");
+						if (verbose) printf("There are enough resources to not abort tasks.\n");
 						break;
 					}
 				}
@@ -266,18 +271,18 @@ void bankers(Manager* manager) {
 
 	while (!allDone(manager)) {
 		int cycle = manager->cycle;
-		printf("Cycle %d: \n", cycle);
+		if (verbose) printf("Cycle %d: \n", cycle);
 		
-		printf("Checking blocked tasks...\n");
+		if (verbose) printf("Checking blocked tasks...\n");
 		Queue* queue = manager->queue;
 		for (i = queue->start; i < queue->end; i++) {
 			if (queue->blocked[i] != NULL) {
 				Task* t = queue->blocked[i];
 				if (t->state == BLOCKED) {
-					printf("Task %d is still blocked\n", t->id);
+					if (verbose) printf("Task %d is still blocked\n", t->id);
 					t->cyclesWaiting++;
 					if (isSafe(manager, t)) {
-						printf("Task %d is unblocked\n", t->id);
+						if (verbose) printf("Task %d is unblocked\n", t->id);
 						t->state = UNBLOCKED;
 						manager->queue->blocked[i] = NULL;
 					}
@@ -303,7 +308,7 @@ void unblockTasks(Manager* manager) {
 	for (i = 1; i <= manager->numTasks; i++) {
 		Task* t = manager->tasks[i];
 		if (t->state == UNBLOCKED) {
-			printf("Task %d completes its request!\n", t->id);
+			if (verbose) printf("Task %d completes its request!\n", t->id);
 			t->state = NORMAL;
 		}
 	}
@@ -336,20 +341,20 @@ bool isSafe(Manager* manager, Task* task) {
 
 	// Error checking
 	if (instructCopy->action != REQUEST) {
-		printf("Current instruction's action must be request.\n");
+		if (verbose) printf("Current instruction's action must be request.\n");
 		exit(1);
 	}
 
 	// If the request is greater than the initial claim, abort the task
 	if (instructCopy->fourthNumber > claimCopy->claimUnits) {
-		printf("Task %d requested more than its initial claim, aborting...\n", task->id);
+		if (verbose) printf("Task %d requested more than its initial claim, aborting...\n", task->id);
 		abortTask(manager, task);
 		return false;
 	}
 
 	// If the combined allocated units are greater than the initial claim, abort task
 	if (instructCopy->fourthNumber + claimCopy->numAllocated > claimCopy->claimUnits) {
-		printf("Task %d request exceeds its claim; aborted.\n", task->id);
+		if (verbose) printf("Task %d request exceeds its claim; aborted.\n", task->id);
 		abortTask(manager, task);
 		return false;
 	}
@@ -450,7 +455,7 @@ bool enough(Manager* manager) {
 			
 			// Error check
 			if (ins->action != REQUEST) {
-				printf("Current instruction must be a request.");
+				if (verbose) printf("Current instruction must be a request.");
 				exit(1);
 			}
 			// There are enough resources available
@@ -484,10 +489,10 @@ void performOptimisticInstructions(Manager* manager) {
 				// Otherwise, block the task until the resources are available
 				case REQUEST:
 					if (canRequest(manager, t)) {
-						printf("Task %d completes its request.\n", t->id);
+						if (verbose) printf("Task %d completes its request.\n", t->id);
 						t->currentInstruction++;
 					} else {
-						printf("Task %d is now blocked.\n", t->id);
+						if (verbose) printf("Task %d is now blocked.\n", t->id);
 						Queue* queue = manager->queue;
 						queue->blocked[queue->end] = t;
 						queue->end++;
@@ -498,13 +503,13 @@ void performOptimisticInstructions(Manager* manager) {
 				case RELEASE:
 					r->unitsOnHold += instruct->fourthNumber;
 					t->currentInstruction++;
-					printf("Task %d will release %d units of resource %d in next cycle\n", 
+					if (verbose) printf("Task %d will release %d units of resource %d in next cycle\n", 
 						t->id, r->unitsOnHold, instruct->thirdNumber);
 					break;
 				// Compute the task
 				case COMPUTE:
 					instruct->thirdNumber--;
-					printf("Task % is computing...\n", t->id);
+					if (verbose) printf("Task % is computing...\n", t->id);
 					if (instruct->thirdNumber <= 0) {
 						t->state = NORMAL;
 						t->currentInstruction++;
@@ -512,7 +517,7 @@ void performOptimisticInstructions(Manager* manager) {
 					break;
 				// Task is finished
 				case TERMINATE:
-					printf("Task %d has terminated.\n", t->id);
+					if (verbose) printf("Task %d has terminated.\n", t->id);
 					t->state = TERMINATED;
 					t->cycleTerminated = manager->cycle;
 					break;
@@ -538,7 +543,7 @@ void performBankerInstructions(Manager* manager) {
 				// Initiate creates a Claim and checks that resources are enough
 				case INITIATE:
 					if (instruct->fourthNumber > r->totalUnits) {
-						printf("Task %d claim exceeds number of resources, aborting...\n", t->id);
+						if (verbose) printf("Task %d claim exceeds number of resources, aborting...\n", t->id);
 						t->state = ABORTED;
 					} else {
 						Claim* claim = (Claim*) malloc(sizeof(Claim));
@@ -553,10 +558,10 @@ void performBankerInstructions(Manager* manager) {
 				// Request is completed only if it leads to safe state, otherwise block
 				case REQUEST:
 					if (isSafe(manager, t)) {
-						printf("Task %d completes its request.\n", t->id);
+						if (verbose) printf("Task %d completes its request.\n", t->id);
 					} else {
 						if (t->state == NORMAL) {
-							printf("Task %d is now blocked.\n", t->id);
+							if (verbose) printf("Task %d is now blocked.\n", t->id);
 							Queue* queue = manager->queue;
 							queue->blocked[queue->end] = t;
 							queue->end++;
@@ -569,13 +574,13 @@ void performBankerInstructions(Manager* manager) {
 					r->unitsOnHold += instruct->fourthNumber;
 					t->claims[instruct->thirdNumber]->numAllocated -= instruct->fourthNumber;
 					t->currentInstruction++;
-					printf("Task %d will release %d units of resource %d in next cycle\n", 
+					if (verbose) printf("Task %d will release %d units of resource %d in next cycle\n", 
 						t->id, r->unitsOnHold, instruct->thirdNumber);
 					break;
 				// Compute uses cycles
 				case COMPUTE:
 					instruct->thirdNumber--;
-					printf("Task % is computing...\n", t->id);
+					if (verbose) printf("Task % is computing...\n", t->id);
 					if (instruct->thirdNumber <= 0) {
 						t->state = NORMAL;
 						t->currentInstruction++;
@@ -583,7 +588,7 @@ void performBankerInstructions(Manager* manager) {
 					break;
 				// Finish the task
 				case TERMINATE:
-					printf("Task %d has terminated.\n", t->id);
+					if (verbose) printf("Task %d has terminated.\n", t->id);
 					t->state = TERMINATED;
 					t->cycleTerminated = manager->cycle;
 					break;
@@ -630,7 +635,7 @@ bool deadlock(Manager* m) {
 bool canRequest(Manager* manager, Task* t) {
 	Instruction* instruct = t->instructions[t->currentInstruction];
 	if (instruct->action != REQUEST) {
-		printf("Current instruction must be request");
+		if (verbose) printf("Current instruction must be request");
 		exit(1);
 	}
 	
@@ -792,10 +797,14 @@ void freeEverything(Manager* manager) {
 /*****************************************************************************/
 
 int main(int argc, char* argv[]) {
-  if (argc != 2) {
+  if (argc < 2) {
     printf("Enter the name of the input file as an argument.\n");
     exit(1);
   }
+
+	if (argc == 3 && strcmp(argv[2], "--verbose") == 0) {
+		verbose = true;
+	}
 
 	// Read the file
   Manager* optimisticManager = readFileInput(argv[1]);
