@@ -8,8 +8,8 @@
 
 /* A claim that each task makes */
 typedef struct Claim {
-  int id;
-  int claimUnits;
+	int id;
+	int claimUnits;
 	int numAllocated;
 } Claim;
 
@@ -32,12 +32,12 @@ typedef struct Instruction {
 
 /* A task to be run with optimistic and banker's algorithms */
 typedef struct Task {
-  int id;
-  int maxClaimId;
+	int id;
+	int maxClaimId;
 	State state;
-  Claim* claims[MOST];
-  int cycleTerminated;
-  int cyclesWaiting;
+	Claim* claims[MOST];
+	int cycleTerminated;
+	int cyclesWaiting;
 	Instruction* instructions[MOST];
 	int numInstructions;
 	int currentInstruction;
@@ -52,20 +52,20 @@ typedef struct Queue {
 
 /* Resources available to be used by tasks */
 typedef struct Resource {
-  int id;
-  int totalUnits;
+	int id;
+	int totalUnits;
 	int unitsLeft;
 	int unitsOnHold;
 } Resource;
 
 /* Manager to handle the running of tasks */
 typedef struct Manager {
-  Task* tasks[MOST];
-  Resource* resources[MOST];
+	Task* tasks[MOST];
+	Resource* resources[MOST];
 	Queue* queue;
-  int cycle;
-  int numTasks;
-  int numResources;
+	int cycle;
+	int numTasks;
+	int numResources;
 } Manager;
 
 /* Function Declarations */
@@ -97,44 +97,44 @@ Manager* readFileInput(char* fileName) {
 	int temp = 1;
 	int i;
 
-  // Open file for read
-  FILE* file = fopen(fileName, "r");
-  if (!file) {
-    printf("Cannot open file, please try again.");
-    exit(1);
-  }
+	// Open file for read
+	FILE* file = fopen(fileName, "r");
+	if (!file) {
+		printf("Cannot open file, please try again.");
+		exit(1);
+	}
 
 	// Create manager to manage tasks and resources
-  Manager* manager = (Manager*) malloc(sizeof(Manager));
-  if (!manager) {
-    printf("Cannot allocate manager.");
-    exit(1);
-  }
+	Manager* manager = (Manager*) malloc(sizeof(Manager));
+	if (!manager) {
+		printf("Cannot allocate manager.");
+		exit(1);
+	}
 
 	// Initiate queue and set other variables
-  fscanf(file, "%d %d", &manager->numTasks, &manager->numResources);
-  manager->cycle = 0;
+	fscanf(file, "%d %d", &manager->numTasks, &manager->numResources);
+	manager->cycle = 0;
 	Queue* queue = (Queue*) malloc(sizeof(Queue));
 	manager->queue = queue;
 	manager->queue->start = 0;
 	manager->queue->end = 0;
 
-  // Create resources 
-  while (temp <= manager->numResources) {
-    Resource* resource = (Resource*) malloc(sizeof(Resource));
-    resource->id = temp;
-    fscanf(file, "%d", &resource->totalUnits);
+	// Create resources 
+	while (temp <= manager->numResources) {
+		Resource* resource = (Resource*) malloc(sizeof(Resource));
+		resource->id = temp;
+		fscanf(file, "%d", &resource->totalUnits);
 		resource->unitsLeft = resource->totalUnits;
 		resource->unitsOnHold = 0;
-    manager->resources[temp] = resource;
+		manager->resources[temp] = resource;
 		temp++;
-  }
+	}
 
 	// Create tasks
 	temp = 1;
 	while (temp <= manager->numTasks) {
-    Task* task = (Task*) malloc(sizeof(Task));
-    task->id = temp;
+		Task* task = (Task*) malloc(sizeof(Task));
+		task->id = temp;
 		task->numInstructions = 0;
 		task->state = NORMAL;
 		task->currentInstruction = 1;
@@ -142,11 +142,11 @@ Manager* readFileInput(char* fileName) {
 		for (i = 0; i < MOST; i++) {
 			task->claims[i] = NULL;
 		}
-    manager->tasks[temp] = task;
-    temp++;
+		manager->tasks[temp] = task;
+		temp++;
 	}
 	readRestOfFile(file, manager);
-  return manager;
+	return manager;
 }
 
 /*
@@ -155,7 +155,7 @@ Manager* readFileInput(char* fileName) {
 void readRestOfFile(FILE* file, Manager* manager) {
 	char action[20];
 	int i, j, k;
-	
+
 	while (!feof(file)) {
 		fscanf(file, "%s%*[ \t] %d %d %d", &action, &i, &j, &k);
 		Instruction* instruction = (Instruction*) malloc(sizeof(Instruction));
@@ -197,7 +197,7 @@ void optimistic(Manager* manager) {
 			printf("Cycle %d: \n", cycle);
 			printf("Checking blocked tasks...\n");
 		}
-		
+
 		// Check blocked queue to see if any tasks can complete its request
 		Queue* queue = manager->queue;
 		for (i = queue->start; i < queue->end; i++) {
@@ -272,7 +272,7 @@ void bankers(Manager* manager) {
 	while (!allDone(manager)) {
 		int cycle = manager->cycle;
 		if (verbose) printf("Cycle %d: \n", cycle);
-		
+
 		if (verbose) printf("Checking blocked tasks...\n");
 		Queue* queue = manager->queue;
 		for (i = queue->start; i < queue->end; i++) {
@@ -452,7 +452,7 @@ bool enough(Manager* manager) {
 		if (t->state == BLOCKED) {
 			Instruction* ins = t->instructions[t->currentInstruction];
 			Resource* r = manager->resources[ins->thirdNumber];
-			
+
 			// Error check
 			if (ins->action != REQUEST) {
 				if (verbose) printf("Current instruction must be a request.");
@@ -485,8 +485,8 @@ void performOptimisticInstructions(Manager* manager) {
 				case INITIATE:
 					t->currentInstruction++;
 					break;
-				// Request can be fulfilled if the manager has the available resources
-				// Otherwise, block the task until the resources are available
+					// Request can be fulfilled if the manager has the available resources
+					// Otherwise, block the task until the resources are available
 				case REQUEST:
 					if (canRequest(manager, t)) {
 						if (verbose) printf("Task %d completes its request.\n", t->id);
@@ -499,14 +499,14 @@ void performOptimisticInstructions(Manager* manager) {
 						t->state = BLOCKED;
 					}
 					break;
-				// Release the task and return all held resources
+					// Release the task and return all held resources
 				case RELEASE:
 					r->unitsOnHold += instruct->fourthNumber;
 					t->currentInstruction++;
 					if (verbose) printf("Task %d will release %d units of resource %d in next cycle\n", 
-						t->id, r->unitsOnHold, instruct->thirdNumber);
+							t->id, r->unitsOnHold, instruct->thirdNumber);
 					break;
-				// Compute the task
+					// Compute the task
 				case COMPUTE:
 					instruct->thirdNumber--;
 					if (verbose) printf("Task % is computing...\n", t->id);
@@ -515,7 +515,7 @@ void performOptimisticInstructions(Manager* manager) {
 						t->currentInstruction++;
 					}
 					break;
-				// Task is finished
+					// Task is finished
 				case TERMINATE:
 					if (verbose) printf("Task %d has terminated.\n", t->id);
 					t->state = TERMINATED;
@@ -555,7 +555,7 @@ void performBankerInstructions(Manager* manager) {
 						t->currentInstruction++;
 					}
 					break;
-				// Request is completed only if it leads to safe state, otherwise block
+					// Request is completed only if it leads to safe state, otherwise block
 				case REQUEST:
 					if (isSafe(manager, t)) {
 						if (verbose) printf("Task %d completes its request.\n", t->id);
@@ -569,15 +569,15 @@ void performBankerInstructions(Manager* manager) {
 						}
 					}
 					break;
-				// Release resources for next cycle
+					// Release resources for next cycle
 				case RELEASE:
 					r->unitsOnHold += instruct->fourthNumber;
 					t->claims[instruct->thirdNumber]->numAllocated -= instruct->fourthNumber;
 					t->currentInstruction++;
 					if (verbose) printf("Task %d will release %d units of resource %d in next cycle\n", 
-						t->id, r->unitsOnHold, instruct->thirdNumber);
+							t->id, r->unitsOnHold, instruct->thirdNumber);
 					break;
-				// Compute uses cycles
+					// Compute uses cycles
 				case COMPUTE:
 					instruct->thirdNumber--;
 					if (verbose) printf("Task % is computing...\n", t->id);
@@ -586,7 +586,7 @@ void performBankerInstructions(Manager* manager) {
 						t->currentInstruction++;
 					}
 					break;
-				// Finish the task
+					// Finish the task
 				case TERMINATE:
 					if (verbose) printf("Task %d has terminated.\n", t->id);
 					t->state = TERMINATED;
@@ -638,7 +638,7 @@ bool canRequest(Manager* manager, Task* t) {
 		if (verbose) printf("Current instruction must be request");
 		exit(1);
 	}
-	
+
 	Resource* r = manager->resources[instruct->thirdNumber];
 	if (r->unitsLeft >= instruct->fourthNumber) {
 		r->unitsLeft -= instruct->fourthNumber;
@@ -680,11 +680,11 @@ void print(Manager* manager, char* runType) {
 			totalCyclesWaiting += t->cyclesWaiting;
 			totalCyclesRun += t->cycleTerminated;
 			printf("%s %d \t\t %d \t %d \t %d\%\n", 
-				"Task",
-				i, 
-				t->cycleTerminated, 
-				t->cyclesWaiting, 
-				percent);
+					"Task",
+					i, 
+					t->cycleTerminated, 
+					t->cyclesWaiting, 
+					percent);
 		} else if (t->state == ABORTED) {
 			printf("%s %d \t\t %s\n", "Task", i, "aborted");
 		}
@@ -692,10 +692,10 @@ void print(Manager* manager, char* runType) {
 
 	// Print total
 	printf("%s \t\t %d \t %d \t %d\%\n", 
-		"Total",
-		totalCyclesRun,
-		totalCyclesWaiting,
-		(int) round(((float)totalCyclesWaiting * 100) / totalCyclesRun));
+			"Total",
+			totalCyclesRun,
+			totalCyclesWaiting,
+			(int) round(((float)totalCyclesWaiting * 100) / totalCyclesRun));
 }
 
 /*
@@ -797,17 +797,17 @@ void freeEverything(Manager* manager) {
 /*****************************************************************************/
 
 int main(int argc, char* argv[]) {
-  if (argc < 2) {
-    printf("Enter the name of the input file as an argument.\n");
-    exit(1);
-  }
+	if (argc < 2) {
+		printf("Enter the name of the input file as an argument.\n");
+		exit(1);
+	}
 
 	if (argc == 3 && strcmp(argv[2], "--verbose") == 0) {
 		verbose = true;
 	}
 
 	// Read the file
-  Manager* optimisticManager = readFileInput(argv[1]);
+	Manager* optimisticManager = readFileInput(argv[1]);
 	Manager* bankerManager = readFileInput(argv[1]);
 
 	// Perform the process of tasks
@@ -824,7 +824,7 @@ int main(int argc, char* argv[]) {
 	// Free allocated resources
 	freeEverything(optimisticManager);	
 	freeEverything(bankerManager);
-	
+
 	printf("\n\n");
-  return 0;
+	return 0;
 }
