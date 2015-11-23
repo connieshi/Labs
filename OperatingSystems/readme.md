@@ -1,5 +1,5 @@
 Lab3: Optimistic resource manager and Banker's Algorithm
-Connie Shi
+Professor Allan Gottlieb
 
 Compile with: gcc lab3.c -o lab3 -lm
 Run with: ./lab3 [input.txt] [--verbose]
