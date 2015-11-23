@@ -1,0 +1,14 @@
+<form method="GET" action="">
+Enter director name: <input type="text" name="director"><br>
+<input type="submit"><br><br>
+</form>
+
+<table>
+{{#each movies}}
+		<tr> 
+			<td> {{this.title}} </td> 
+			<td> {{this.director}} </td>
+			<td> {{this.year}} </td>
+		</tr>
+{{/each}}
+</table>

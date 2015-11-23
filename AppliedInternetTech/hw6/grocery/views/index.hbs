@@ -1,0 +1,11 @@
+<h1> Shoppy Shoperson </h1>
+
+<h2> Grocery Lists </h2>
+
+<ul>
+{{#each lists}}
+<li><a href='/list/{{this.slug}}'> {{this.name}} </a></li>
+{{/each}}
+</ul>
+
+<a href='/list/create'>Create a New List</a>

@@ -1,0 +1,41 @@
+Connies-MacBook:cs3313-homework03 connieshi$ curl -I localhost:3000//
+HTTP/1.1 200 OK
+Content-Type: text.html
+Date: Sat, 03 Oct 2015 03:17:28 GMT
+Connection: keep-alive
+
+Connies-MacBook:cs3313-homework03 connieshi$ curl -I localhost:3000/about
+HTTP/1.1 200 OK
+Content-Type: text/html
+Date: Sat, 03 Oct 2015 03:17:59 GMT
+Connection: keep-alive
+
+Connies-MacBook:cs3313-homework03 connieshi$ curl -I localhost:3000/ABOUT
+HTTP/1.1 200 OK
+Content-Type: text/html
+Date: Sat, 03 Oct 2015 03:18:06 GMT
+Connection: keep-alive
+
+Connies-MacBook:cs3313-homework03 connieshi$ curl -I localhost:3000/about/
+HTTP/1.1 200 OK
+Content-Type: text/html
+Date: Sat, 03 Oct 2015 03:18:12 GMT
+Connection: keep-alive
+
+Connies-MacBook:cs3313-homework03 connieshi$ curl -I localhost:3000/me
+HTTP/1.1 301 Moved Permanently
+Location: /about
+Date: Sat, 03 Oct 2015 03:18:37 GMT
+Connection: keep-alive
+
+Connies-MacBook:cs3313-homework03 connieshi$ curl -I localhost:3000/css/base.css
+HTTP/1.1 200 OK
+Content-Type: text/css
+Date: Sat, 03 Oct 2015 03:18:47 GMT
+Connection: keep-alive
+
+Connies-MacBook:cs3313-homework03 connieshi$ curl -I localhost:3000/img/image1.png
+HTTP/1.1 200 OK
+Content-Type: image/png
+Date: Sat, 03 Oct 2015 03:18:56 GMT
+Connection: keep-alive

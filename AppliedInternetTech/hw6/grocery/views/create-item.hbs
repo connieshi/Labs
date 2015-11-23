@@ -1,0 +1,26 @@
+<h1>Your list of items</h1>
+<form method='post' action='/item/check'>
+	<ul>
+	{{#each items}}
+		{{#if this.checked}}
+			<strike> {{this.quantity}} x {{this.name}} </strike> <br>
+		{{else}}
+			<input type='checkbox' name='checkboxes' value='{{this.name}}'> {{this.quantity}} x {{this.name}} <br>
+		{{/if}}
+	{{/each}}
+	</ul>
+
+	<input type='submit' value='Check'>
+	<input type='hidden' name='slug' value='{{slug}}'> <br><br>
+</form>
+
+<h1>Create a new item</h1>
+<form method='post' action='/item/create'>
+	Name of item: <input type='text' name='name'> <br><br>
+	Quantity: <input type='number' name='quantity'> <br><br>
+	<input type='hidden' name='slug' value='{{slug}}'>
+	<input type='submit' value='Add Item'> <br><br>
+</form>
+
+<a href='/list'>All Lists</a>
+<a href='/list/create'>Create a New List</a>

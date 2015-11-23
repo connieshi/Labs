@@ -1,0 +1,49 @@
+table {
+	text-align: center;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+td {
+	background: purple;
+}
+
+.symbol {
+	font-size: 2em;
+}
+
+.box {
+  box-shadow: 5px 5px 5px;
+	border-radius: 30px;
+  background: #993399;
+  padding: 20px; 
+}
+
+.box:hover {
+	background:#ff5050;
+}
+
+body {
+	font-family: Tahoma;
+	font-size: 1em;
+	text-align: center;
+	background-color: #B0B0B0;
+	color: white;
+}
+
+h1 {
+	font-size: 3em;
+	color: white;
+}
+
+p {
+	font-family: Tahoma;
+	font-size: 2em;
+	text-align: center;
+	color: white;
+}
+
+span {
+	padding: 15px;
+	box-shadow: 2px;
+}
