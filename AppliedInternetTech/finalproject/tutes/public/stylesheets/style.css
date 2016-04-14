@@ -1,0 +1,153 @@
+body {
+	padding: 1em;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+	font-family: 'Oxygen', sans-serif;
+	text-align: center;
+}
+
+span {
+	display: block;
+	text-align: center;
+}
+
+a {
+  color: #00B7FF;
+}
+
+ul {
+	list-style-type: none;
+	text-align: center;
+	padding: 0px;
+}
+
+p {
+	margin-top: 0em;
+	margin-bottom: 0em;
+}
+
+h1 {
+	color: #825791;
+	font-family: 'Pacifico', cursive;
+	display: inline-block;
+	padding: .5em;
+	text-align: left;
+	font-size: 5em;
+}
+
+h2 {
+	color: #825791;
+	font-family: 'Pacifico', cursive;
+	display: inline-block;
+	padding: .5em;
+	text-align: center;
+	font-size: 2em;
+	margin-top: .5em;
+	margin-bottom: 0em;
+}
+
+h3 {
+	color: #988f9a;
+	display: inline;
+	margin-top: 0em;
+	margin-bottom: 0em;
+	font-family: 'Oxygen', sans-serif;
+	font-size: 1.5em;
+}
+
+h4 {
+	color: #aa6abf;
+	display: inline;
+	margin-top: 0em;
+	margin-bottom: .5em;
+	font-family: 'Oxygen', sans-serif;
+	font-size: 1em;
+}
+
+#tutes {
+	color: #825791;
+	font-family: 'Sigmar One', cursive;
+	display: block;
+	padding: 0em;
+	text-align: center;
+	font-size: 5em;
+}
+
+#loginErrors {
+	color: black;
+	display: inline;
+	margin-top: 0em;
+	margin-bottom: .5em;
+	font-family: 'Oxygen', sans-serif;
+	font-size: 1em;
+}
+
+.pure-button {
+	color: white;
+	border-radius: 4px;
+	margin-top: 1em;
+	text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+	background: rgb(133, 82, 150);
+	text-align: center;
+	display: inline;
+}
+
+.pure-button:hover {
+	background: rgb(116, 116, 116);
+}
+
+#message {
+	height: 100px;
+	width: 90%;
+	font-size: 14pt;
+}
+
+#profile {
+	color: #988f9a;
+	font-family: 'Oxygen', sans-serif;
+	font-size: 1em;
+	margin-top: 0em;
+	margin-bottom: .5em;
+}
+
+#allMessages li {
+	margin-top: 2px;
+	padding: 10px;
+	max-width: 50%;
+	clear: both;
+	position: relative;
+	list-style-type: none;
+	font-family: 'Oxygen', sans-serif;
+}
+
+.sent {
+	color: white;
+	border-radius: 10px;
+	padding: 10px;
+	margin-top: 2px;
+	background: rgb(82, 150, 150);
+	float: right;
+	margin-left: auto;
+	text-align: right;
+}
+
+.received {
+	color: white;
+	border-radius: 10px;
+	padding: 10px;
+	margin-top: 2px;
+	background: rgb(183, 123, 106);
+	float: left;
+	margin-right: auto;
+}
+
+.hiddenElements {
+	display: none;
+}
+
+.oneClass {
+	display: inline-block;
+}
+
+.buttons {
+	display: block;
+}

@@ -1,0 +1,28 @@
+<script src="javascripts/search.js"></script>
+
+<div class="pure-menu pure-menu-horizontal">
+    <ul class="pure-menu-list">
+        <li class="pure-menu-item"><a href="/tutors" class="pure-menu-link">Home</a></li>
+        <li class="pure-menu-item"><a href="/message" class="pure-menu-link">Messages</a></li>
+        <li class="pure-menu-item"><a href="/" class="pure-menu-link">Log Out</a></li>
+    </ul>
+</div>
+
+<h1> Find a Tutor </h1>
+
+<center>
+<form method="post" action="" class="pure-form pure-form-stacked">
+	<input type="text" name="tutorUsername" id="getUsername" placeholder="Username">
+	<button type="submit" id="find" class="pure-button">Search</button>
+</form>
+</center>
+
+<br> <br>
+
+<div>
+	<ul>
+		{{#each tutors}}
+			<li><h4><a href="/tutors/{{this.slug}}">{{this.name}}</a></h4>, {{this.school}}</li>
+		{{/each}}
+	</ul>
+</div>
